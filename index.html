@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>4'04" — OTOPIA</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #000;
+    color: #CCCED2;
+    font-family: 'Courier New', Courier, monospace;
+    overflow: hidden;
+    height: 100dvh;
+    width: 100vw;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  .screen {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* ── IDLE ── */
+  #idle {
+    cursor: pointer;
+  }
+
+  #idle .title {
+    font-size: clamp(4rem, 18vw, 14rem);
+    color: #fff;
+    letter-spacing: -0.02em;
+    line-height: 1;
+    font-weight: 700;
+  }
+
+  #idle .sub {
+    font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+    font-size: clamp(0.6rem, 1.4vw, 0.85rem);
+    color: #CCCED2;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    margin-top: 1.8rem;
+    text-align: center;
+    padding: 0 1rem;
+  }
+
+  /* ── ACTIVE ── */
+  #active {
+    cursor: none;
+  }
+
+  #noise {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+  }
+
+  .scanlines {
+    position: fixed;
+    inset: 0;
+    z-index: 3;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0, 0, 0, 0.18) 2px,
+      rgba(0, 0, 0, 0.18) 4px
+    );
+    pointer-events: none;
+  }
+
+  #timer {
+    font-size: clamp(5rem, 22vw, 18rem);
+    color: #fff;
+    position: relative;
+    z-index: 4;
+    line-height: 1;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ── END ── */
+  #end {
+    cursor: pointer;
+    gap: 0;
+  }
+
+  #signal-lost {
+    font-size: clamp(1.8rem, 7vw, 5.5rem);
+    color: #CCCED2;
+    letter-spacing: 0.08em;
+    opacity: 0;
+    transition: opacity 1s ease 0.3s;
+    font-weight: 700;
+  }
+
+  #go-outside {
+    font-size: clamp(1.8rem, 7vw, 5.5rem);
+    color: #BCFB03;
+    letter-spacing: 0.08em;
+    opacity: 0;
+    transition: opacity 1s ease 1.2s;
+    margin-top: 0.15em;
+    font-weight: 700;
+  }
+
+  #logotype {
+    position: fixed;
+    bottom: 2rem;
+    font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+    font-size: 0.7rem;
+    letter-spacing: 0.45em;
+    color: #CCCED2;
+    opacity: 0;
+    transition: opacity 1s ease 2.2s;
+  }
+
+  .visible {
+    opacity: 1 !important;
+  }
+
+  /* ── MUTE TOGGLE ── */
+  #mute {
+    position: fixed;
+    top: 1rem;
+    right: 1.2rem;
+    background: none;
+    border: none;
+    color: #CCCED2;
+    font-size: 1rem;
+    cursor: pointer;
+    z-index: 10;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s;
+    padding: 0.25rem;
+    line-height: 1;
+    font-family: 'Courier New', Courier, monospace;
+  }
+
+  #mute.visible {
+    opacity: 0.6;
+    pointer-events: auto;
+  }
+
+  #mute:hover {
+    opacity: 1 !important;
+  }
+
+  /* hidden utility */
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+
+<button id="mute" aria-label="Toggle sound">◉</button>
+
+<!-- IDLE -->
+<div id="idle" class="screen" role="button" aria-label="Start timer">
+  <div class="title">4'04"</div>
+  <div class="sub">4 minutes 4 seconds of gap / beyond the ordinary</div>
+</div>
+
+<!-- ACTIVE -->
+<div id="active" class="screen" hidden>
+  <canvas id="noise"></canvas>
+  <div class="scanlines"></div>
+  <div id="timer">4:04</div>
+</div>
+
+<!-- END -->
+<div id="end" class="screen" hidden role="button" aria-label="Return to start">
+  <div id="signal-lost">SIGNAL LOST</div>
+  <div id="go-outside">GO OUTSIDE</div>
+  <div id="logotype">OTOPIA</div>
+</div>
+
+<script>
+  // ── State ──────────────────────────────────────────────────────────────────
+  const TOTAL_SECONDS = 244; // 4:04
+  let state = 'idle';        // 'idle' | 'active' | 'end'
+  let remaining = TOTAL_SECONDS;
+  let timerInterval = null;
+  let noiseRAF = null;
+  let isMuted = false;
+
+  // Audio handles
+  let audioCtx = null;
+  let gainNode = null;
+  let noiseSource = null;
+
+  // ── Elements ───────────────────────────────────────────────────────────────
+  const elIdle   = document.getElementById('idle');
+  const elActive = document.getElementById('active');
+  const elEnd    = document.getElementById('end');
+  const elTimer  = document.getElementById('timer');
+  const elMute   = document.getElementById('mute');
+  const canvas   = document.getElementById('noise');
+  const canvasCtx = canvas.getContext('2d');
+
+  // ── Canvas noise ───────────────────────────────────────────────────────────
+  canvas.width  = 320;
+  canvas.height = 240;
+
+  function drawNoise() {
+    const img = canvasCtx.createImageData(320, 240);
+    const d = img.data;
+    for (let i = 0; i < d.length; i += 4) {
+      const v = (Math.random() * 255) | 0;
+      d[i] = d[i + 1] = d[i + 2] = v;
+      d[i + 3] = 255;
+    }
+    canvasCtx.putImageData(img, 0, 0);
+    noiseRAF = requestAnimationFrame(drawNoise);
+  }
+
+  function stopNoise() {
+    if (noiseRAF) {
+      cancelAnimationFrame(noiseRAF);
+      noiseRAF = null;
+    }
+    canvasCtx.clearRect(0, 0, 320, 240);
+  }
+
+  // ── Web Audio white noise ──────────────────────────────────────────────────
+  function startAudio() {
+    try {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const sampleRate = audioCtx.sampleRate;
+      const bufferSize = sampleRate * 3; // 3s loop buffer
+      const buffer = audioCtx.createBuffer(1, bufferSize, sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) {
+        data[i] = Math.random() * 2 - 1;
+      }
+
+      noiseSource = audioCtx.createBufferSource();
+      noiseSource.buffer = buffer;
+      noiseSource.loop = true;
+
+      gainNode = audioCtx.createGain();
+      gainNode.gain.value = isMuted ? 0 : 0.05;
+
+      noiseSource.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
+      noiseSource.start();
+    } catch (e) {
+      // Web Audio not available — silent degradation
+    }
+  }
+
+  function fadeOutAudio() {
+    if (!gainNode || !audioCtx) return;
+    try {
+      gainNode.gain.cancelScheduledValues(audioCtx.currentTime);
+      gainNode.gain.setValueAtTime(gainNode.gain.value, audioCtx.currentTime);
+      gainNode.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 2);
+      setTimeout(() => {
+        try { noiseSource && noiseSource.stop(); } catch (_) {}
+        try { audioCtx && audioCtx.close(); } catch (_) {}
+        audioCtx = gainNode = noiseSource = null;
+      }, 2200);
+    } catch (_) {}
+  }
+
+  function setMuteState(muted) {
+    isMuted = muted;
+    elMute.textContent = muted ? '○' : '◉';
+    elMute.setAttribute('aria-label', muted ? 'Unmute' : 'Mute');
+    if (gainNode && audioCtx) {
+      gainNode.gain.cancelScheduledValues(audioCtx.currentTime);
+      gainNode.gain.setValueAtTime(gainNode.gain.value, audioCtx.currentTime);
+      gainNode.gain.linearRampToValueAtTime(
+        muted ? 0 : 0.05,
+        audioCtx.currentTime + 0.05
+      );
+    }
+  }
+
+  // ── Timer ──────────────────────────────────────────────────────────────────
+  function formatTime(secs) {
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return `${m}:${String(s).padStart(2, '0')}`;
+  }
+
+  function startTimer() {
+    remaining = TOTAL_SECONDS;
+    elTimer.textContent = formatTime(remaining);
+    timerInterval = setInterval(() => {
+      remaining--;
+      elTimer.textContent = formatTime(remaining);
+      if (remaining <= 0) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+        enterEnd();
+      }
+    }, 1000);
+  }
+
+  // ── State transitions ──────────────────────────────────────────────────────
+  function enterActive() {
+    if (state !== 'idle') return;
+    state = 'active';
+
+    elIdle.hidden  = true;
+    elActive.hidden = false;
+    elEnd.hidden   = true;
+
+    elMute.classList.add('visible');
+
+    drawNoise();
+    startAudio();
+    startTimer();
+  }
+
+  function enterEnd() {
+    state = 'end';
+
+    stopNoise();
+    fadeOutAudio();
+
+    elActive.hidden = true;
+    elEnd.hidden    = false;
+
+    // Trigger CSS transition stagger
+    requestAnimationFrame(() => {
+      document.getElementById('signal-lost').classList.add('visible');
+      document.getElementById('go-outside').classList.add('visible');
+      document.getElementById('logotype').classList.add('visible');
+    });
+  }
+
+  function enterIdle() {
+    if (state !== 'end') return;
+    state = 'idle';
+
+    // Reset end screen elements for next run
+    document.getElementById('signal-lost').classList.remove('visible');
+    document.getElementById('go-outside').classList.remove('visible');
+    document.getElementById('logotype').classList.remove('visible');
+
+    elEnd.hidden   = true;
+    elMute.classList.remove('visible');
+    elIdle.hidden  = false;
+
+    elTimer.textContent = formatTime(TOTAL_SECONDS);
+  }
+
+  // ── Event listeners ────────────────────────────────────────────────────────
+  elIdle.addEventListener('click', enterActive);
+  elIdle.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') enterActive(); });
+
+  elEnd.addEventListener('click', enterIdle);
+  elEnd.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') enterIdle(); });
+
+  elMute.addEventListener('click', e => {
+    e.stopPropagation();
+    setMuteState(!isMuted);
+  });
+
+  // Spacebar / Enter shortcut from any state
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && state === 'active') return; // no escape
+    if ((e.key === ' ' || e.key === 'Enter') && state === 'idle') enterActive();
+  });
+</script>
+</body>
+</html>
