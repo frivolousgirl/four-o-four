@@ -145,11 +145,19 @@
     opacity: 1 !important;
   }
 
-  /* ── MUTE TOGGLE ── */
-  #mute {
+  /* ── TOP CONTROLS ── */
+  #top-controls {
     position: fixed;
     top: 1rem;
     right: 1.2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    z-index: 10;
+    align-items: stretch;
+  }
+
+  .win95-btn {
     background: #C0C0C0;
     color: #000;
     font-family: 'Fol10-Square', 'Courier New', monospace;
@@ -157,7 +165,6 @@
     letter-spacing: 0.15em;
     text-transform: uppercase;
     cursor: pointer;
-    z-index: 10;
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.3s;
@@ -168,19 +175,74 @@
     box-shadow: inset -1px -1px 0 #404040, inset 1px 1px 0 #dfdfdf;
   }
 
-  #mute.visible {
+  .win95-btn.visible {
     opacity: 1;
     pointer-events: auto;
   }
 
-  #mute:hover {
-    opacity: 1;
-  }
-
-  #mute:active {
+  .win95-btn:active {
     border-color: #808080 #fff #fff #808080;
     box-shadow: inset 1px 1px 0 #404040, inset -1px -1px 0 #dfdfdf;
     padding: 0.5em 0.95em 0.4em 1.05em;
+  }
+
+  /* ── INFO PANEL ── */
+  #info-panel {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 20;
+    background: #C0C0C0;
+    border: 2px solid;
+    border-color: #fff #808080 #808080 #fff;
+    box-shadow: inset -1px -1px 0 #404040, inset 1px 1px 0 #dfdfdf;
+    min-width: 280px;
+    max-width: min(480px, 90vw);
+  }
+
+  #info-titlebar {
+    background: #000080;
+    color: #fff;
+    padding: 0.3em 0.4em 0.3em 0.6em;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-family: 'Fol10-Square', 'Courier New', monospace;
+    font-size: 0.65rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  #info-close {
+    background: #C0C0C0;
+    color: #000;
+    font-family: 'Fol10-Square', 'Courier New', monospace;
+    font-size: 0.6rem;
+    border: 2px solid;
+    border-color: #fff #808080 #808080 #fff;
+    box-shadow: inset -1px -1px 0 #404040, inset 1px 1px 0 #dfdfdf;
+    padding: 0.1em 0.4em;
+    cursor: pointer;
+    line-height: 1;
+  }
+
+  #info-close:active {
+    border-color: #808080 #fff #fff #808080;
+    box-shadow: inset 1px 1px 0 #404040, inset -1px -1px 0 #dfdfdf;
+  }
+
+  #info-content {
+    padding: 1.2em 1.5em 1.4em;
+    font-family: 'Fol10-Square', 'Courier New', monospace;
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
+    line-height: 1.7;
+    color: #000;
+  }
+
+  #info-content p + p {
+    margin-top: 0.3em;
   }
 
   /* hidden utility */
@@ -189,7 +251,22 @@
 </head>
 <body>
 
-<button id="mute" aria-label="Mute">MUTE</button>
+<div id="top-controls">
+  <button id="mute" class="win95-btn" aria-label="Mute">MUTE</button>
+  <button id="info" class="win95-btn" aria-label="Info">INFO</button>
+</div>
+
+<div id="info-panel" hidden>
+  <div id="info-titlebar">
+    <span>4'04"</span>
+    <button id="info-close" aria-label="Close">X</button>
+  </div>
+  <div id="info-content">
+    <p>4'O4" exists in the space between movement and disappearance.</p>
+    <p>Between signal and silence.</p>
+    <p>Between one place and the next.</p>
+  </div>
+</div>
 
 <!-- IDLE -->
 <div id="idle" class="screen" role="button" aria-label="Start timer">
@@ -229,12 +306,14 @@
   let noiseSource = null;
 
   // ── Elements ───────────────────────────────────────────────────────────────
-  const elIdle   = document.getElementById('idle');
-  const elActive = document.getElementById('active');
-  const elEnd    = document.getElementById('end');
-  const elTimer  = document.getElementById('timer');
-  const elMute   = document.getElementById('mute');
-  const canvas   = document.getElementById('noise');
+  const elIdle      = document.getElementById('idle');
+  const elActive    = document.getElementById('active');
+  const elEnd       = document.getElementById('end');
+  const elTimer     = document.getElementById('timer');
+  const elMute      = document.getElementById('mute');
+  const elInfo      = document.getElementById('info');
+  const elInfoPanel = document.getElementById('info-panel');
+  const canvas      = document.getElementById('noise');
   const canvasCtx = canvas.getContext('2d');
 
   // ── Canvas noise ───────────────────────────────────────────────────────────
@@ -302,6 +381,12 @@
     } catch (_) {}
   }
 
+  function playWin95Sound() {
+    try {
+      new Audio('sounds/critical-stop.wav').play();
+    } catch (_) {}
+  }
+
   function setMuteState(muted) {
     isMuted = muted;
     elMute.textContent = muted ? 'UNMUTE' : 'MUTE';
@@ -350,6 +435,7 @@
     elEnd.hidden   = true;
 
     elMute.classList.add('visible');
+    elInfo.classList.remove('visible');
 
     drawNoise();
     startAudio();
@@ -373,6 +459,7 @@
     });
 
     document.body.classList.add('end-state');
+    elInfo.classList.add('visible');
   }
 
   function enterIdle() {
@@ -385,6 +472,8 @@
     document.getElementById('logotype').classList.remove('visible');
 
     document.body.classList.remove('end-state');
+    elInfoPanel.hidden = true;
+    elInfo.classList.remove('visible');
     elEnd.hidden   = true;
     elMute.classList.remove('visible');
     elIdle.hidden  = false;
@@ -402,6 +491,17 @@
   elMute.addEventListener('click', e => {
     e.stopPropagation();
     setMuteState(!isMuted);
+  });
+
+  elInfo.addEventListener('click', e => {
+    e.stopPropagation();
+    elInfoPanel.hidden = !elInfoPanel.hidden;
+    if (!elInfoPanel.hidden) playWin95Sound();
+  });
+
+  document.getElementById('info-close').addEventListener('click', e => {
+    e.stopPropagation();
+    elInfoPanel.hidden = true;
   });
 
   // Spacebar / Enter shortcut from any state
