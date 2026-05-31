@@ -5,17 +5,42 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>4'04" — OTOPIA</title>
 <style>
+  @font-face {
+    font-family: 'Fol10-Square';
+    src: url('fonts/Fol10-Square.otf') format('opentype');
+    font-weight: normal;
+    font-style: normal;
+  }
+
+  @font-face {
+    font-family: 'Fol10-Thin';
+    src: url('fonts/Fol10-Thin.otf') format('opentype');
+    font-weight: normal;
+    font-style: normal;
+  }
+
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
   body {
     background: #000;
     color: #CCCED2;
-    font-family: 'Courier New', Courier, monospace;
+    font-family: 'Fol10-Square', 'Courier New', monospace;
     overflow: hidden;
     height: 100dvh;
     width: 100vw;
     user-select: none;
     -webkit-user-select: none;
+    transition: background 0.8s ease;
+  }
+
+  body.end-state {
+    background: #BCFB03;
+  }
+
+  body.end-state #signal-lost,
+  body.end-state #go-outside,
+  body.end-state #logotype {
+    color: #111;
   }
 
   .screen {
@@ -35,21 +60,11 @@
   #idle .title {
     font-size: clamp(4rem, 18vw, 14rem);
     color: #fff;
-    letter-spacing: -0.02em;
+    letter-spacing: 0.1em;
     line-height: 1;
     font-weight: 700;
   }
 
-  #idle .sub {
-    font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
-    font-size: clamp(0.6rem, 1.4vw, 0.85rem);
-    color: #CCCED2;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-    margin-top: 1.8rem;
-    text-align: center;
-    padding: 0 1rem;
-  }
 
   /* ── ACTIVE ── */
   #active {
@@ -81,14 +96,13 @@
   }
 
   #timer {
-    font-size: clamp(5rem, 22vw, 18rem);
+    font-size: clamp(4rem, 18vw, 14rem);
     color: #fff;
     position: relative;
     z-index: 4;
     line-height: 1;
     font-weight: 700;
-    letter-spacing: -0.02em;
-    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.1em;
   }
 
   /* ── END ── */
@@ -98,6 +112,7 @@
   }
 
   #signal-lost {
+    font-family: 'Fol10-Thin', 'Courier New', monospace;
     font-size: clamp(1.8rem, 7vw, 5.5rem);
     color: #CCCED2;
     letter-spacing: 0.08em;
@@ -119,7 +134,6 @@
   #logotype {
     position: fixed;
     bottom: 2rem;
-    font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
     font-size: 0.7rem;
     letter-spacing: 0.45em;
     color: #CCCED2;
@@ -136,27 +150,37 @@
     position: fixed;
     top: 1rem;
     right: 1.2rem;
-    background: none;
-    border: none;
-    color: #CCCED2;
-    font-size: 1rem;
+    background: #C0C0C0;
+    color: #000;
+    font-family: 'Fol10-Square', 'Courier New', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
     cursor: pointer;
     z-index: 10;
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.3s;
-    padding: 0.25rem;
+    padding: 0.45em 1em;
     line-height: 1;
-    font-family: 'Courier New', Courier, monospace;
+    border: 2px solid;
+    border-color: #fff #808080 #808080 #fff;
+    box-shadow: inset -1px -1px 0 #404040, inset 1px 1px 0 #dfdfdf;
   }
 
   #mute.visible {
-    opacity: 0.6;
+    opacity: 1;
     pointer-events: auto;
   }
 
   #mute:hover {
-    opacity: 1 !important;
+    opacity: 1;
+  }
+
+  #mute:active {
+    border-color: #808080 #fff #fff #808080;
+    box-shadow: inset 1px 1px 0 #404040, inset -1px -1px 0 #dfdfdf;
+    padding: 0.5em 0.95em 0.4em 1.05em;
   }
 
   /* hidden utility */
@@ -165,19 +189,18 @@
 </head>
 <body>
 
-<button id="mute" aria-label="Toggle sound">◉</button>
+<button id="mute" aria-label="Mute">MUTE</button>
 
 <!-- IDLE -->
 <div id="idle" class="screen" role="button" aria-label="Start timer">
   <div class="title">4'04"</div>
-  <div class="sub">4 minutes 4 seconds of gap / beyond the ordinary</div>
 </div>
 
 <!-- ACTIVE -->
 <div id="active" class="screen" hidden>
   <canvas id="noise"></canvas>
   <div class="scanlines"></div>
-  <div id="timer">4:04</div>
+  <div id="timer">4'04"</div>
 </div>
 
 <!-- END -->
@@ -189,7 +212,11 @@
 
 <script>
   // ── State ──────────────────────────────────────────────────────────────────
-  const TOTAL_SECONDS = 244; // 4:04
+  const TOTAL_SECONDS = (() => {
+    const params = new URLSearchParams(window.location.hash.slice(1));
+    const s = parseInt(params.get('seconds'), 10);
+    return (!isNaN(s) && s > 0) ? s : 244;
+  })();
   let state = 'idle';        // 'idle' | 'active' | 'end'
   let remaining = TOTAL_SECONDS;
   let timerInterval = null;
@@ -277,7 +304,7 @@
 
   function setMuteState(muted) {
     isMuted = muted;
-    elMute.textContent = muted ? '○' : '◉';
+    elMute.textContent = muted ? 'UNMUTE' : 'MUTE';
     elMute.setAttribute('aria-label', muted ? 'Unmute' : 'Mute');
     if (gainNode && audioCtx) {
       gainNode.gain.cancelScheduledValues(audioCtx.currentTime);
@@ -293,8 +320,11 @@
   function formatTime(secs) {
     const m = Math.floor(secs / 60);
     const s = secs % 60;
-    return `${m}:${String(s).padStart(2, '0')}`;
+    return `${m}'${String(s).padStart(2, '0')}"`;
   }
+
+  document.querySelector('#idle .title').textContent = formatTime(TOTAL_SECONDS);
+  elTimer.textContent = formatTime(TOTAL_SECONDS);
 
   function startTimer() {
     remaining = TOTAL_SECONDS;
@@ -341,6 +371,8 @@
       document.getElementById('go-outside').classList.add('visible');
       document.getElementById('logotype').classList.add('visible');
     });
+
+    document.body.classList.add('end-state');
   }
 
   function enterIdle() {
@@ -352,6 +384,7 @@
     document.getElementById('go-outside').classList.remove('visible');
     document.getElementById('logotype').classList.remove('visible');
 
+    document.body.classList.remove('end-state');
     elEnd.hidden   = true;
     elMute.classList.remove('visible');
     elIdle.hidden  = false;
