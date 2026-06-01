@@ -19,6 +19,13 @@
     font-style: normal;
   }
 
+  @font-face {
+    font-family: 'ProggySquare';
+    src: url('fonts/ProggySquare.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+  }
+
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
   body {
@@ -134,7 +141,8 @@
   #logotype {
     position: fixed;
     bottom: 2rem;
-    font-size: 0.7rem;
+    font-family: 'ProggySquare', 'Courier New', monospace;
+    font-size: 0.9rem;
     letter-spacing: 0.45em;
     color: #CCCED2;
     opacity: 0;
@@ -234,8 +242,8 @@
 
   #info-content {
     padding: 1.2em 1.5em 1.4em;
-    font-family: 'Fol10-Square', 'Courier New', monospace;
-    font-size: 0.75rem;
+    font-family: 'ProggySquare', 'Courier New', monospace;
+    font-size: 1rem;
     letter-spacing: 0.05em;
     line-height: 1.7;
     color: #000;
@@ -284,18 +292,19 @@
 <div id="end" class="screen" hidden role="button" aria-label="Return to start">
   <div id="signal-lost">SIGNAL LOST</div>
   <div id="go-outside">GO OUTSIDE</div>
-  <div id="logotype">OTOPIA</div>
+  <div id="logotype">OTOPIA INDUSTRIES EST. 2026</div>
 </div>
 
 <script>
   // ── State ──────────────────────────────────────────────────────────────────
-  const TOTAL_SECONDS = (() => {
+  function parseHashSeconds() {
     const params = new URLSearchParams(window.location.hash.slice(1));
     const s = parseInt(params.get('seconds'), 10);
     return (!isNaN(s) && s > 0) ? s : 244;
-  })();
+  }
+  let totalSeconds = parseHashSeconds();
   let state = 'idle';        // 'idle' | 'active' | 'end'
-  let remaining = TOTAL_SECONDS;
+  let remaining = totalSeconds;
   let timerInterval = null;
   let noiseRAF = null;
   let isMuted = false;
@@ -408,11 +417,11 @@
     return `${m}'${String(s).padStart(2, '0')}"`;
   }
 
-  document.querySelector('#idle .title').textContent = formatTime(TOTAL_SECONDS);
-  elTimer.textContent = formatTime(TOTAL_SECONDS);
+  document.querySelector('#idle .title').textContent = formatTime(totalSeconds);
+  elTimer.textContent = formatTime(totalSeconds);
 
   function startTimer() {
-    remaining = TOTAL_SECONDS;
+    remaining = totalSeconds;
     elTimer.textContent = formatTime(remaining);
     timerInterval = setInterval(() => {
       remaining--;
@@ -478,7 +487,7 @@
     elMute.classList.remove('visible');
     elIdle.hidden  = false;
 
-    elTimer.textContent = formatTime(TOTAL_SECONDS);
+    elTimer.textContent = formatTime(totalSeconds);
   }
 
   // ── Event listeners ────────────────────────────────────────────────────────
@@ -502,6 +511,20 @@
   document.getElementById('info-close').addEventListener('click', e => {
     e.stopPropagation();
     elInfoPanel.hidden = true;
+  });
+
+  window.addEventListener('hashchange', () => {
+    const s = parseHashSeconds();
+    if (s === totalSeconds) return;
+    totalSeconds = s;
+    if (state === 'idle') {
+      remaining = totalSeconds;
+      document.querySelector('#idle .title').textContent = formatTime(totalSeconds);
+      elTimer.textContent = formatTime(totalSeconds);
+    } else if (state === 'active') {
+      remaining = totalSeconds;
+      elTimer.textContent = formatTime(remaining);
+    }
   });
 
   // Spacebar / Enter shortcut from any state
